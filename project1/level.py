@@ -62,8 +62,8 @@ def rotate_GyroA(dt):
   """
   gyro_sens = 32.8	
   a = -math.radians(Gyro[2]*dt/gyro_sens)
-  b = math.radians(Gyro[1]*dt/gyro_sens)
-  c = math.radians(Gyro[0]*dt/gyro_sens)
+  b = -math.radians(Gyro[1]*dt/gyro_sens)
+  c = -math.radians(Gyro[0]*dt/gyro_sens)
   
   sa = math.sin(a)
   ca = math.cos(a)
