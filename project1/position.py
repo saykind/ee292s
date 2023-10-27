@@ -4,11 +4,12 @@ from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
 from header import *
 import numpy as np
+import statistics as stat
 
 GyroA = np.array([0,0,0])
 
-def KalmanFilterSetup():
-  measVar = 0.25   # Noise is 0.5 m/s^2 
+def KalmanFilterSetup(var):
+  measVar = var * (9.81 ** 2)/(16384 ** 2)
   kf = KalmanFilter(dim_x=3,dim_z=1)
   kf.F = np.array([[1, 0.1, 0.5 * 0.1 ** 2],
                   [0, 1, 0.1],
@@ -24,17 +25,12 @@ def KalmanFilterSetup():
 
   kf.Q = Q_discrete_white_noise(3, dt=0.1, var=1)
   kf.R = np.array([[measVar]]) # Variance of measurement
-
   return kf
 
 
-def x_gravity():
-  AccelX = Accel[0]/16384 * 9.81
-  AccelY = Accel[1]/16384 * 9.81
-  AccelZ = Accel[2]/16384 * 9.81
-
-  g = 9.81 * math.sin(math.acos(AccelZ / (math.sqrt(AccelX ** 2 + AccelY ** 2 + AccelZ ** 2))))
-
+def x_gravity(a):
+  angle = math.atan(math.sqrt(a[0] ** 2 + a[1] ** 2)/a[2])
+  g = math.sin(angle)
   return g
 
 
@@ -42,15 +38,17 @@ def calibrateSensors():
   print('Calibrating Sensors')
   N = 0
   AccelXVals = []
+  AccelYVals = []
+  AccelZVals = []
 
-  while N != 500:
+  while N != 100:
     icm20948.icm20948_Gyro_Accel_Read()
     time.sleep(0.1)
 
-    AccelXVals.append(Accel[0]/16384*9.81)
+    AccelXVals.append(Accel[0])
     N += 1
 
-  return sum(AccelXVals)/N
+  return AccelXVals
 
 
 def polar_angle(n):
@@ -80,15 +78,19 @@ def rotate_GyroA(dt):
 
 
 if __name__ == '__main__':
-  kf = KalmanFilterSetup()
 
   icm20948=ICM20948()
 
   icm20948.icm20948_Gyro_Accel_Read()
   GyroA = np.array(Accel).copy()
 
-  accelCalX = calibrateSensors()
+  # Gravity Level
+  calX = calibrateSensors()
 
+  offset = stat.mean(calX)
+  var = stat.variance(calX)
+
+  kf = KalmanFilterSetup(var)
 
   sleep_time = 0.1
   calc = False
@@ -107,12 +109,9 @@ if __name__ == '__main__':
 
     print(f'Sample Time: {dt} s')
 
-    # Gravity level
-    g = x_gravity()
-    print(f'Leakage Gravity: {g}')
-
-    # Convert Acceleratometer Output
-    AccelX = Accel[0]/16384 * 9.81 - accelCalX
+    # Subtract Offset from Acceleratometer Output
+    print(f'X Offset: {offset}')
+    AccelX = (Accel[0] - offset)/16384 * 9.8
 
     # Kalman Filter
     kf.predict()
@@ -121,6 +120,7 @@ if __name__ == '__main__':
 
     print(f'Position: {kf.x[0]} m\nVelocity: {kf.x[1]} m/s\nAcceleration: {kf.x[2]} m/s^2')
     print(f'Sensor Acceleration: {AccelX}')
+    print(f'Actual Measured: {Accel[0]/16384}')
     print(f'=================================================================')
 
     calc = True
