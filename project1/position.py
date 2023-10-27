@@ -112,12 +112,16 @@ if __name__ == '__main__':
     dt0 = dt1
     
     # Gravity level
-    gravity_leakage = find_gyro_orientation(dt)
-    Accel = np.array([Accel[0], Accel[1], Accel[2]], dtype=float)
-    Accel -= gravity_leakage
+    x = Accel[0]/16384 * 9.8
+    y = Accel[1]/16384 * 9.8
+    z = Accel[2]/16384 * 9.8
+    print(f'Accel before g correction: {x:.2f}, {y:.2f}, {z:.2f}')
+    gravity_leakage = find_gyro_orientation(dt) / 9.8
+    Accel = np.array([x, y, z], dtype=float)
+    # Accel -= gravity_leakage
 
     if verbose == 1:
-      print(f'\n\nSample Time: {dt} s')
+      print(f'Sample Time: {dt} s')
       print(f'gravity leakage: {gravity_leakage}')
       print(f'X Offset: {offset}')
 
@@ -134,4 +138,4 @@ if __name__ == '__main__':
       print(f'Actual Measured: {Accel[0]/16384}')
       print(f'=================================================================')
 
-    calc = False
+    calc = True
