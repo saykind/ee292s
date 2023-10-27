@@ -4,12 +4,11 @@ from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
 from header import *
 import numpy as np
-import statistics as stat
 
 GyroA = np.array([0,0,0])
 
-def KalmanFilterSetup(var):
-  measVar = var * (9.81 ** 2)/(16384 ** 2)
+def KalmanFilterSetup():
+  measVar = 0.25   # Noise is 0.5 m/s^2 
   kf = KalmanFilter(dim_x=3,dim_z=1)
   kf.F = np.array([[1, 0.1, 0.5 * 0.1 ** 2],
                   [0, 1, 0.1],
@@ -25,38 +24,41 @@ def KalmanFilterSetup(var):
 
   kf.Q = Q_discrete_white_noise(3, dt=0.1, var=1)
   kf.R = np.array([[measVar]]) # Variance of measurement
+
   return kf
 
 
-def x_gravity(a):
-  angle = math.atan(math.sqrt(a[0] ** 2 + a[1] ** 2)/a[2])
-  g = math.sin(angle)
-  return g
+def x_gravity():
+  AccelX = Accel[0]/16384 * 9.81
+  AccelY = Accel[1]/16384 * 9.81
+  AccelZ = Accel[2]/16384 * 9.81
+
+  g = 9.81 * math.sin(math.acos(AccelZ / (math.sqrt(AccelX ** 2 + AccelY ** 2 + AccelZ ** 2))))
+
+  return g, AccelX, AccelY, AccelZ
 
 
 def calibrateSensors():
   print('Calibrating Sensors')
   N = 0
   AccelXVals = []
-  AccelYVals = []
-  AccelZVals = []
 
-  while N != 100:
+  while N != 500:
     icm20948.icm20948_Gyro_Accel_Read()
     time.sleep(0.1)
 
-    AccelXVals.append(Accel[0])
+    AccelXVals.append(Accel[0]/16384*9.81)
     N += 1
 
-  return AccelXVals
+  return sum(AccelXVals)/N
 
 
 def polar_angle(n):
   return math.degrees(math.acos(n[2]/np.linalg.norm(n)))
 
 
-def rotate_GyroA(dt):
-  """ Changes value of the global variable GyroA.
+def find_gyro_orientation(dt,vec_to_rotate):
+  """ Returns new vector rotated to IMU orientation
       I follow this order of operations 
       https://msl.cs.uiuc.edu/planning/node102.html
   """
@@ -71,26 +73,24 @@ def rotate_GyroA(dt):
   cb = math.cos(b)
   sc = math.sin(c)
   cc = math.cos(c)
-  g = np.array(GyroA).copy()
-  GyroA[0] = ca*cb*g[0] + (ca*sb*sc-sa*cc)*g[1] + (ca*sb*cc+sa*sc)*g[2]
-  GyroA[1] = sa*cb*g[0] + (sa*sb*sc+ca*cc)*g[1] + (sa*sb*cc-ca*sc)*g[2]
-  GyroA[2] =   -sb*g[0] +            cb*sc*g[1] +            cb*cc*g[2]
+  g = vec_to_rotate
+  x = ca*cb*g[0] + (ca*sb*sc-sa*cc)*g[1] + (ca*sb*cc+sa*sc)*g[2]
+  y = sa*cb*g[0] + (sa*sb*sc+ca*cc)*g[1] + (sa*sb*cc-ca*sc)*g[2]
+  z =   -sb*g[0] +            cb*sc*g[1] +            cb*cc*g[2]
+  return np.array([x, y, z])
 
 
 if __name__ == '__main__':
+  kf = KalmanFilterSetup()
 
   icm20948=ICM20948()
 
   icm20948.icm20948_Gyro_Accel_Read()
   GyroA = np.array(Accel).copy()
 
-  # Gravity Level
-  calX = calibrateSensors()
-
-  offset = stat.mean(calX)
-  var = stat.variance(calX)
-
-  kf = KalmanFilterSetup(var)
+  accelCalX = calibrateSensors()
+  g, AccelX, AccelY, AccelZ = x_gravity()
+  print(f'Leakage Gravity: {g}')
 
   sleep_time = 0.1
   calc = False
@@ -109,9 +109,13 @@ if __name__ == '__main__':
 
     print(f'Sample Time: {dt} s')
 
-    # Subtract Offset from Acceleratometer Output
-    print(f'X Offset: {offset}')
-    AccelX = (Accel[0] - offset)/16384 * 9.8
+    # Gravity level
+    gravity_leakage = find_gyro_orientation(dt,[0,0,9.8])
+    Accel = np.array([AccelX, AccelY, AccelZ], dtype=float)
+    Accel -= gravity_leakage
+
+    # Convert Acceleratometer Output
+    AccelX = Accel[0]/16384 * 9.81 - accelCalX
 
     # Kalman Filter
     kf.predict()
@@ -120,7 +124,6 @@ if __name__ == '__main__':
 
     print(f'Position: {kf.x[0]} m\nVelocity: {kf.x[1]} m/s\nAcceleration: {kf.x[2]} m/s^2')
     print(f'Sensor Acceleration: {AccelX}')
-    print(f'Actual Measured: {Accel[0]/16384}')
     print(f'=================================================================')
 
     calc = True
