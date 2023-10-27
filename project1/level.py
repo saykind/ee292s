@@ -7,15 +7,15 @@ def plot_init():
   """ Creates axes to be used for real time data plotting."""
   fig, axs = plt.subplots(2, 2, figsize=(6, 4), sharex='col')
   
-  titles = [["Accelerometer angle", "Gyroscope angle"], ["Processor frequency", "Difference"]]
-  ylabels = [["angle, deg", "angle, deg"], ["frequency, Hz", "angle, deg"]]
+  titles = [["Accelerometer angle", "Gyroscope angle"], ["Processor frequency", "Fused angle"]]
+  ylabels = [["angle, deg", "angle, deg", "angle, deg"], ["frequency, Hz", "angle, deg"]]
   for i in range(2):
     for j in range(2):
       axs[i,j].grid()
       axs[i,j].set_title(titles[i][j])
       axs[i,j].set_ylabel(ylabels[i][j])
       axs[1,j].set_xlabel("Time, sec")
-  
+
   domain = np.linspace(0,10,100)
   val = 18*domain
   (ln00,) = axs[0,0].plot(domain, val, 'k', animated=True)
@@ -23,10 +23,11 @@ def plot_init():
   (ln10,) = axs[1,0].plot(domain, val, 'r', animated=True)
   val = 18*domain
   (ln01,) = axs[0,1].plot(domain, val, 'k', animated=True)
-  val = 6*domain-30
+  val = 18*domain
   (ln11,) = axs[1,1].plot(domain, val, 'k', animated=True)
   lns = np.array([[ln00, ln01], [ln10, ln11]])
-  
+
+
   plt.tight_layout()
   plt.show(block=False)
   plt.pause(.05)
@@ -82,6 +83,7 @@ if __name__ == '__main__':
   fig, axs, lns, bg, domain = plot_init()
   acc_level = np.zeros(domain.size)
   gyr_level = np.zeros(domain.size)
+  fuse_level = np.zeros(domain.size)
   freqs = np.zeros(domain.size)
   
   # Initialize gyro direction
@@ -100,14 +102,23 @@ if __name__ == '__main__':
     freqs[-1] = 1./dt
     
     # Calculate angle from accelerometer
+    acc_angle = polar_angle(Accel)
     acc_level[:-1] = acc_level[1:]
-    acc_level[-1] = polar_angle(Accel)
+    acc_level[-1] = acc_angle
     
     # Calculate angle from gyroscope
     rotate_GyroA(dt)
+    gyr_angle = polar_angle(GyroA)
     gyr_level[:-1] = gyr_level[1:]
-    gyr_level[-1] = polar_angle(GyroA)
-    
-    vals = np.array([[acc_level,gyr_level],[freqs,acc_level-gyr_level]])
+    gyr_level[-1] = gyr_angle
+
+
+    # Calculate angle from fused implementation
+    fused_angle = 0.9 * gyr_angle + 0.1 * acc_angle
+    fuse_level[:-1] = fuse_level[1:]
+    fuse_level[-1] = fused_angle
+
+    vals = np.array([[acc_level,gyr_level],[freqs,fuse_level]])
     plot_flush(fig, axs, lns, bg, vals)
+
 
