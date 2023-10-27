@@ -6,7 +6,7 @@ from header import *
 import numpy as np
 import statistics as stat
 
-GyroA = np.array([0,0,0])
+gravity_vec = np.array([0,0,9.8])
 
 def KalmanFilterSetup(var):
   measVar = var * (9.81 ** 2)/(16384 ** 2)
@@ -56,8 +56,8 @@ def polar_angle(n):
   return math.degrees(math.acos(n[2]/np.linalg.norm(n)))
 
 
-def find_gyro_orientation(dt,vec_to_rotate):
-  """ Returns new vector rotated to IMU orientation
+def find_gyro_orientation(dt):
+  """ Returns rotated gravity vector
       I follow this order of operations 
       https://msl.cs.uiuc.edu/planning/node102.html
   """
@@ -72,11 +72,11 @@ def find_gyro_orientation(dt,vec_to_rotate):
   cb = math.cos(b)
   sc = math.sin(c)
   cc = math.cos(c)
-  g = vec_to_rotate
-  x = ca*cb*g[0] + (ca*sb*sc-sa*cc)*g[1] + (ca*sb*cc+sa*sc)*g[2]
-  y = sa*cb*g[0] + (sa*sb*sc+ca*cc)*g[1] + (sa*sb*cc-ca*sc)*g[2]
-  z =   -sb*g[0] +            cb*sc*g[1] +            cb*cc*g[2]
-  return np.array([x, y, z])
+  g = gravity_vec.copy()
+  gravity_vec[0] = ca*cb*g[0] + (ca*sb*sc-sa*cc)*g[1] + (ca*sb*cc+sa*sc)*g[2]
+  gravity_vec[1] = sa*cb*g[0] + (sa*sb*sc+ca*cc)*g[1] + (sa*sb*cc-ca*sc)*g[2]
+  gravity_vec[2] =   -sb*g[0] +            cb*sc*g[1] +            cb*cc*g[2]
+  return gravity_vec
 
 
 if __name__ == '__main__':
@@ -96,6 +96,9 @@ if __name__ == '__main__':
   sleep_time = 0.1
   calc = False
 
+  verbose = 1
+  start_time = time.time()
+
   dt0 = time.time()
   while True:
     icm20948.icm20948_Gyro_Accel_Read()
@@ -107,26 +110,28 @@ if __name__ == '__main__':
     dt1 = time.time()
     dt = dt1-dt0
     dt0 = dt1
-
-    print(f'Sample Time: {dt} s')
-
+    
     # Gravity level
-    gravity_leakage = find_gyro_orientation(dt,[0,0,9.8])
+    gravity_leakage = find_gyro_orientation(dt)
     Accel = np.array([Accel[0], Accel[1], Accel[2]], dtype=float)
     Accel -= gravity_leakage
 
+    if verbose == 1:
+      print(f'\n\nSample Time: {dt} s')
+      print(f'gravity leakage: {gravity_leakage}')
+      print(f'X Offset: {offset}')
+
     # Subtract Offset from Acceleratometer Output
-    print(f'X Offset: {offset}')
     AccelX = (Accel[0] - offset)/16384 * 9.8
 
     # Kalman Filter
     kf.predict()
     kf.update([AccelX])
 
+    if verbose == 1:
+      print(f'Position: {kf.x[0]} m\nVelocity: {kf.x[1]} m/s\nAcceleration: {kf.x[2]} m/s^2')
+      print(f'Sensor Acceleration: {AccelX}')
+      print(f'Actual Measured: {Accel[0]/16384}')
+      print(f'=================================================================')
 
-    print(f'Position: {kf.x[0]} m\nVelocity: {kf.x[1]} m/s\nAcceleration: {kf.x[2]} m/s^2')
-    print(f'Sensor Acceleration: {AccelX}')
-    print(f'Actual Measured: {Accel[0]/16384}')
-    print(f'=================================================================')
-
-    calc = True
+    calc = False
