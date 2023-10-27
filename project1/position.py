@@ -12,7 +12,7 @@ def KalmanFilterSetup(var):
   measVar = var * (9.81 ** 2)/(16384 ** 2)
   kf = KalmanFilter(dim_x=3,dim_z=1)
   kf.F = np.array([[1, 0.1, 0.5 * 0.1 ** 2],
-                  [0, 1, 0.1]
+                  [0, 1, 0.1],
                   [0, 0, 1]])
   kf.H = np.array([[0, 0, 1]])
 
@@ -112,7 +112,7 @@ if __name__ == '__main__':
 
     # Gravity level
     gravity_leakage = find_gyro_orientation(dt,[0,0,9.8])
-    Accel = np.array([AccelX, AccelY, AccelZ], dtype=float)
+    Accel = np.array([Accel[0], Accel[1], Accel[2]], dtype=float)
     Accel -= gravity_leakage
 
     # Subtract Offset from Acceleratometer Output
