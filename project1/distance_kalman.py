@@ -5,13 +5,13 @@ This program measures acceleration of RPI, then uses gyro to calculate its orien
 and subtracts contribution from gravity.
 Code assumes that at t=0 there is only gravity (no other acceleration).
 Next it usess Kalman filter to double-integrate acceleration and measure distance.
-It plots distance.
+It plots distance, velocity or acceleration.
 """
 from header import *
 from filterpy.kalman import KalmanFilter
 #plt.rcParams['text.usetex'] = True
 
-GyroA = np.array([0,0,0])
+GyroA = np.array(Accel).copy()
 
 def plot_init():
   """ Creates axes to be used for real time data plotting."""
@@ -27,7 +27,7 @@ def plot_init():
       axs[1,j].set_xlabel("Time, sec")
   
   domain = np.linspace(0,10,100)
-  val = np.linspace(-1,1,100)
+  val = 10*np.linspace(-1,1,100)
   val_freq = 5+2*domain
   (ln00,) = axs[0,0].plot(domain, val, 'k', animated=True)
   (ln10,) = axs[1,0].plot(domain, val_freq, 'r', animated=True)
@@ -57,7 +57,7 @@ def plot_flush(fig, axs, lns, bg, vals):
   fig.canvas.flush_events()
   
 def polar_angle(n):
-  return math.degrees(math.acos(n[2]/np.linalg.norm(n)))
+  return np.rad2deg(np.arccos(n[:,2]/np.linalg.norm(n, axis=1)))
 
 def azimuth_angle(n = Accel):
   return math.degrees(math.acos(n[0]/np.linalg.norm(n[:2])))
@@ -104,37 +104,16 @@ def kalman_distance_init(dt):
                    [0, 0, 0, 0, 0, 0, 0, 0, 1.],])
   # Initial conditions (values x, variances p)
   kf.x = np.zeros(kf.dim_x)
-  kf.P = np.eye(kf.dim_x)
+  kf.P = 3e-3*(.1*np.ones((kf.dim_x, kf.dim_x)) + np.eye(kf.dim_x))
+  # Variance of prediction
+  kf.Q = 1e-3*(.1*np.ones((kf.dim_x, kf.dim_x)) + np.eye(kf.dim_x))
   # Variance of measurement
-  kf.Q = np.eye(kf.dim_x)
-  kf.R = np.eye(kf.dim_z)
+  kf.R = 1e-2*(.1*np.ones((kf.dim_z, kf.dim_z)) + np.eye(kf.dim_z))
   
   return kf
   
 def stop_motion(kf):
   kf.x[3:6] = 0
-
-  
-
-def kalman_accel_init(x0):
-  kf = KalmanFilter(dim_x=3, dim_z=6)
-  # State transition matrix
-  kf.F = np.eye(kf.dim_x)
-  # Measurement array
-  kf.H = np.array([[1., 0, 0],
-                   [0, 1., 0],
-                   [0, 0, 1.],
-                   [1., 0, 0],
-                   [0, 1., 0],
-                   [0, 0, 1.]])
-  # Initial conditions (values x, variances p)
-  kf.x = x0
-  kf.P = 1e3*np.eye(kf.dim_x)
-  # Variance of measurement
-  kf.Q = 1e4*np.eye(kf.dim_x)
-  kf.R = 1e4*np.eye(kf.dim_z)
-  
-  return kf
 
 
 
@@ -147,9 +126,10 @@ if __name__ == '__main__':
   fig, axs, lns, bg, domain = plot_init()
   dim_x = 9
   dim_z = 3
-  acc = np.zeros(dim_z)
-  pos = np.zeros((dim_z, domain.size))
-  x   = np.zeros((dim_x, domain.size))
+  acc = np.zeros(dim_z, dtype=np.float64)
+  a = np.zeros((domain.size,3), dtype=np.int32)		# Accel values
+  g = np.zeros((domain.size,3), dtype=np.int32) 	# GyroA values
+  x = np.zeros((domain.size, dim_x), dtype=np.float64)	# Kalman values
   freqs = np.zeros(domain.size)
   
   # Initialize gyro direction
@@ -159,7 +139,6 @@ if __name__ == '__main__':
   
   # Initialize Kalman
   kf = kalman_distance_init(.05)
-  kfa = kalman_accel_init(GyroA0)
   
   dt0 = time.time()
   while True:
@@ -172,22 +151,23 @@ if __name__ == '__main__':
     freqs[:-1] = freqs[1:]
     freqs[-1] = 1./dt
     
-    # Update gravity vector used by gyro
-    if np.linalg.norm(np.var(x[-3:,-20:], axis=1)) < 1e-5:
-      GyroA = np.array(Accel)
+    # Calculate angle from gyroscope
+    a_var = np.linalg.norm(np.var(a[-10:], axis=0))
+    if a_var < 1e3:
+      GyroA = np.array(Accel).copy()
       stop_motion(kf)
     else:
       rotate_GyroA(dt)
-    
-    # Update acceleration using Kalman
-    kfa.predict()
-    z = np.array([Accel, GyroA])
-    z = z.reshape((1,6))
-    kfa.update(z)
+      
+    # Record acceleration vectors
+    a[:-1] = a[1:]
+    a[-1] = np.array(Accel).copy()
+    g[:-1] = g[1:]
+    g[-1] = np.array(GyroA).copy()
     
     # Substract gravity from acceleration vector
     acc_sens = 16384/9.81
-    acc = (kfa.x-GyroA)/acc_sens
+    acc = (a[-1]-g[-1])/acc_sens
     
     # Kalman update
     kf.K = generate_F(dt)
@@ -195,12 +175,12 @@ if __name__ == '__main__':
     kf.update(acc)
     
     # Plot acceleration components
-    x[:,:-1] = x[:,1:]
-    x[:,-1]  = kf.x
-    x[-3:,-1] = acc
+    x[:-1] = x[1:]
+    x[-1]  = kf.x
+    x[-1,-3:] = acc
     
-    vals = np.array([[x[0,:], x[1,:]],[freqs, x[2,:]]]) #position
-    #vals = np.array([[x[3,:], x[4,:]],[freqs, x[5,:]]]) #velocity
-    #vals = np.array([[x[6,:], x[7,:]],[freqs, x[8,:]]]) #acceleration
+    #vals = np.array([[x[:,0], x[:,1]],[freqs, x[:,2]]]) #position
+    #vals = np.array([[x[:,3], x[:,4]],[freqs, x[:,5]]]) #velocity
+    vals = np.array([[x[:,6], x[:,7]],[freqs, x[:,8]]]) #acceleration
     plot_flush(fig, axs, lns, bg, vals)
 
