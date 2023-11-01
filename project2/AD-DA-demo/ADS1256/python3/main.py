@@ -10,6 +10,12 @@ import RPi.GPIO as GPIO
 try:
     ADC = ADS1256.ADS1256()
     ADC.ADS1256_init()
+    
+    # Enable input buffer
+    # If doesn't work, reboot pi
+    ADC.ADS1256_PrintRegs(); print()
+    ADC.ADS1256_EnableInputBuffer()
+    ADC.ADS1256_PrintRegs(); print()
 
     while(1):
         ADC_Value = ADC.ADS1256_GetAll()

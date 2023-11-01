@@ -203,5 +203,14 @@ class ADS1256:
         for i in range(0,8,1):
             ADC_Value[i] = self.ADS1256_GetChannalValue(i)
         return ADC_Value
+        
+    def ADS1256_PrintRegs(self):
+      for key, value in REG_E.items():
+        val = self.ADS1256_Read_data(value)[0]
+        print(key, ':\t', val, '\t', bin(val))
+        
+    def ADS1256_EnableInputBuffer(self):
+      self.ADS1256_WriteReg(REG_E['REG_STATUS'], 0x36)
+      
 ### END OF FILE ###
 
