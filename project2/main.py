@@ -19,6 +19,8 @@ FPS for PRBS31: 17.663965435380135
 FPS for PRBS15: 36.320376887089566
 FPS for PRBS7: 77.11280009119021
 """
+threshold = 2
+spacing = 9 # Spacing in mm
 
 # Correlation function
 def xcor(array1, array2):
@@ -158,6 +160,34 @@ def drive_and_sense_pins(ADC, pins, shifted_prbs, sense_pin):
 	return sense_array
 
 
+# Calculate centroid
+def centroid(caps):
+	total_weight = np.sum(caps)
+
+	x = 0
+	y = 0
+
+	# X Coordinate
+	for i in range(5):
+		x_weight = np.sum(caps[:, i])
+		x += i*(x_weight/total_weight)
+
+	# Y Coordinate
+	for i in range(7):
+		y_weight = np.sum(caps[i, :])
+		y += i*(y_weight/total_weight)
+
+	digit_x = round(x)
+	digit_y = round(y)
+
+	# Major/Minor Axes
+	x_axes = 2 * np.std(caps[:, digit_x]) / np.sum(caps[:, digit_x])
+	y_axes = 2 * np.std(caps[digit_y, :]) / np.sum(caps[digit_y, :])
+
+	coords = (x, y)
+	major_minor_axes = (max(x_axes, y_axes), min(x_axes, y_axes))
+
+	return coords, major_minor_axes
 
 
 # Drive Pins
@@ -177,11 +207,11 @@ drive_pins = [7, 12, 16, 20, 21]
 # PRBS63 (8 FPS)
 # taps = '110000'
 
-# PRBS32 (16 FPS) -> Smallest with best SNR, better SNR from more signal gain
-taps = '10100'
+# PRBS31 (16 FPS) -> Smallest with best SNR, better SNR from more signal gain
+#taps = '10100'
 
-# PRBS16 (36 FPS) -> Smallest PRBS we can use (any lower and the delays are too close to each other -- some leakage into other delays) (spaced for enough for leakage between delays to not happen)
-# taps = '1100'
+# PRBS15 (36 FPS) -> Smallest PRBS we can use (any lower and the delays are too close to each other -- some leakage into other delays) (spaced for enough for leakage between delays to not happen)
+taps = '1100'
 
 # PRBS7 (72 FPS) -> Some leakage in other delays, difficult to distinguish minor axes
 # taps = '110'
@@ -191,6 +221,7 @@ prbs_name = f'prbs{PRBS_SIZE}'
 
 # Create delay spacing for PRBS for each drive lines
 delay_spacing = np.linspace(0, prbs.size - 1, num=5, dtype=np.int16)
+
 print(delay_spacing)
 print(f'Delays: {delay_spacing}')
 # Make matrix of shifted PRBSes
@@ -241,33 +272,39 @@ while(1):
 
 	for i in range(7):
 		cor[i] = xcor(sensed[i], prbs)
+		cor[i] = cor[i] - np.min(cor[i])
 
 	caps = cor[:, delay_spacing]
 
 	# Set thresholds (change threshold depending on PRBS -- look at correlation graph)
 	touch_screen = np.copy(caps)
-	touch_screen[touch_screen < 11] = 0
+	touch_screen[touch_screen < threshold] = 0
 
 	# Update Plots
 	update_heatmap(fig, heatmap, ax[0], heatmap_bg, touch_screen)
 	update_plot(fig, cor_plots, ax[1], cor_bg, cor)
 	T2 = time.time()
 	FPS = 1/(T2-T1)
-	print('FPS:', FPS)
-	"""
-	plt.imshow(caps, cmap='hot', interpolation='nearest', animated=True)
-	plt.title(f'Heatmap of Touch for PRBS{PRBS_SIZE} - Touch at Top Left Corner')
-	plt.show()
-
-	for i in range(len(acor)):
-		plt.plot(acor[i])
-
-	plt.legend(['Row 1','Row 2','Row 3','Row 4','Row 5','Row 6', 'Row 7'])
-	plt.title(f'Correlation for Sense Rows at PRBS{PRBS_SIZE} - Touch at Top Left Corner')
-	plt.grid()
-	plt.show()
-	break
-	"""
 
 
+	# Get centroid coordinates
+	if np.any(touch_screen):
+		centroid_coords, mm_axes = centroid(caps)
 
+		print(f'Centroid Coordinates (X, Y): {centroid_coords}')
+		print(f'Major Axes: {mm_axes[0]}')
+		print(f'Minor Axes: {mm_axes[1]}')
+
+	# print('FPS:', FPS)
+
+"""
+plt.imshow(caps, cmap='hot', interpolation='nearest', animated=True)
+plt.title(f'Heatmap of Touch for PRBS{PRBS_SIZE} - Touch at Top Left Corner')
+plt.show()
+
+for i in range(len(acor)):
+	plt.plot(acor[i])
+
+plt.legend(['Row 1','Row 2','Row 3','Row 4','Row 5','Row 6', 'Row 7'])
+plt.title(f'Correlation for Sense Rows at PRBS{PRBS_SIZE} - Touch at Top Left Corner')
+plt.grid()
