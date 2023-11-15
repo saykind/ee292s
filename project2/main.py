@@ -20,7 +20,7 @@ FPS for PRBS15: 36.320376887089566
 FPS for PRBS7: 77.11280009119021
 """
 threshold = 2
-spacing = 9 # Spacing in mm
+spacing = 0.9 # Spacing in mm
 
 # Correlation function
 def xcor(array1, array2):
@@ -308,3 +308,6 @@ for i in range(len(acor)):
 plt.legend(['Row 1','Row 2','Row 3','Row 4','Row 5','Row 6', 'Row 7'])
 plt.title(f'Correlation for Sense Rows at PRBS{PRBS_SIZE} - Touch at Top Left Corner')
 plt.grid()
+plt.show()
+break
+"""
