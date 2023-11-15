@@ -20,7 +20,7 @@ FPS for PRBS15: 36.320376887089566
 FPS for PRBS7: 77.11280009119021
 """
 threshold = 2
-spacing = 0.9 # Spacing in mm
+spacing = 9 # Spacing in mm
 
 # Correlation function
 def xcor(array1, array2):
@@ -181,10 +181,10 @@ def centroid(caps):
 	digit_y = round(y)
 
 	# Major/Minor Axes
-	x_axes = 2 * np.std(caps[:, digit_x]) / np.sum(caps[:, digit_x])
-	y_axes = 2 * np.std(caps[digit_y, :]) / np.sum(caps[digit_y, :])
+	x_axes = 2 * np.std(caps[:, digit_x]) / np.sum(caps[:, digit_x]) * spacing
+	y_axes = 2 * np.std(caps[digit_y, :]) / np.sum(caps[digit_y, :]) * spacing
 
-	coords = (x, y)
+	coords = (x * spacing, y * spacing)
 	major_minor_axes = (max(x_axes, y_axes), min(x_axes, y_axes))
 
 	return coords, major_minor_axes
@@ -291,9 +291,9 @@ while(1):
 	if np.any(touch_screen):
 		centroid_coords, mm_axes = centroid(caps)
 
-		print(f'Centroid Coordinates (X, Y): {centroid_coords}')
-		print(f'Major Axes: {mm_axes[0]}')
-		print(f'Minor Axes: {mm_axes[1]}')
+		print(f'Centroid Coordinates (X, Y) (in mm): {centroid_coords}')
+		print(f'Major Axes (in mm): {mm_axes[0]}')
+		print(f'Minor Axes (in mm): {mm_axes[1]}')
 
 	# print('FPS:', FPS)
 
