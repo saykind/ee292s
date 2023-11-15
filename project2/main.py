@@ -7,6 +7,7 @@ import DAC8532
 import RPi.GPIO as GPIO
 import numpy as np
 import matplotlib.pyplot as plt
+from filterpy.kalman import KalmanFilter
 
 
 """
@@ -188,7 +189,31 @@ def centroid(caps):
 	major_minor_axes = (max(x_axes, y_axes), min(x_axes, y_axes))
 
 	return coords, major_minor_axes
-
+	
+	
+# Kalman filter 
+def generate_F(dt):
+  return np.array([[1, 0, dt, 0],
+                   [0, 1, 0, dt],
+                   [0, 0, 1, 0],
+                   [0, 0, 0, 1]])
+                   
+def kalman_init(dt):
+	kf = KalmanFilter(dim_x=4, dim_z=2)
+	# State transition matrix
+	kf.F = generate_F(dt)
+	# Measurement array
+	kf.H = np.array([[1., 0, 0, 0],
+			[0, 1., 0, 0]])
+	# Initial conditions (values x, variances p)
+	kf.x = np.zeros(kf.dim_x)
+	kf.P = 1e-2*(.1*np.ones((kf.dim_x, kf.dim_x)) + np.eye(kf.dim_x))
+	# Variance of prediction
+	kf.Q = 1e-2*(.1*np.ones((kf.dim_x, kf.dim_x)) + np.eye(kf.dim_x))
+	# Variance of measurement
+	kf.R = 1e-2*(.1*np.ones((kf.dim_z, kf.dim_z)) + np.eye(kf.dim_z))
+	
+	return kf
 
 # Drive Pins
 drive_pins = [7, 12, 16, 20, 21]
@@ -259,6 +284,9 @@ touch_screen = np.zeros(shape=(7, 5))
 # Setup Plots
 fig, ax, heatmap_bg, cor_bg, heatmap, cor_plots = plot_init(PRBS_SIZE)
 
+# Initialize Kalman
+kf = kalman_init(.116)
+
 while(1):
 	T1 = time.time()
 	sense = np.zeros(shape=(7, PRBS_SIZE))
@@ -285,15 +313,25 @@ while(1):
 	update_plot(fig, cor_plots, ax[1], cor_bg, cor)
 	T2 = time.time()
 	FPS = 1/(T2-T1)
+	
 
 
 	# Get centroid coordinates
 	if np.any(touch_screen):
 		centroid_coords, mm_axes = centroid(caps)
+		
+		#Update Kalman
+		kf.F = generate_F(T2-T1)
+		kf.predict()
+		kf.update(centroid_coords)
+		vx = kf.x[2]
+		vy = kf.x[3]
 
-		print(f'Centroid Coordinates (X, Y) (in mm): {centroid_coords}')
-		print(f'Major Axes (in mm): {mm_axes[0]}')
-		print(f'Minor Axes (in mm): {mm_axes[1]}')
+		print(f'Centroid Coordinates (X, Y) (in mm): {np.round(centroid_coords,2)}')
+		print(f'Major Axes (in mm): {mm_axes[0]:.2f}')
+		print(f'Minor Axes (in mm): {mm_axes[1]:.2f}')
+		print(f'Kalman position (X, Y) (mm/s): {kf.x[0]:.2f}, {kf.x[1]:.2f}')
+		print(f'Kalman Velocity (X, Y) (mm/s): {vx:.2f}, {vy:.2f}')
 
 	# print('FPS:', FPS)
 
