@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 ### Constants
 CHANNEL = 7
-N = 5000 # number of points
+N = 2000 # number of points
 RATE = 100 # Hz
 PERIOD = N/RATE # seconds
 
@@ -21,7 +21,7 @@ def plot_init():
   """ Creates axes to be used for real time data plotting."""
   fig, axs = plt.subplots(2, 2, figsize=(6, 4), sharex='col')
   
-  titles = [["Signal", "FFT X"], ["Processor frequency", "FFT Y"]]
+  titles = [["Signal", "FFT R"], ["Processor frequency", "FFT X"]]
   ylabels = [["a.u.", "a.u"], ["freq, Hz", "freq, Hz"]]
   for i in range(2):
     for j in range(2):
@@ -37,11 +37,11 @@ def plot_init():
   val = 90+20*np.linspace(0,1,N)
   (ln10,) = axs[1,0].plot(domain_t, val, 'r', animated=True)
   
-  N_f = N
-  domain_f = np.linspace(0, RATE, N_f)
-  val = np.linspace(0,10,N_f)
+  N_f = N//10
+  domain_f = np.linspace(0, RATE*(N_f/N), N_f)
+  val = np.linspace(0,N_f/10,N_f)
   (ln01,) = axs[0,1].plot(domain_f, val, 'k', animated=True)
-  val = np.linspace(0,10,N_f)
+  val = np.linspace(0,N_f/10,N_f)
   (ln11,) = axs[1,1].plot(domain_f, val, 'k', animated=True)
   lns = np.array([[ln00, ln01], [ln10, ln11]])
 
@@ -56,23 +56,25 @@ def plot_init():
   fig.canvas.blit(fig.bbox)
   return fig, axs, lns, bg, domain_t, domain_f
   
-def plot_flush(fig, axs, lns, bg, vals):
+def plot_flush(fig, axs, lns, bg, vals_t, vals_f):
   """ Blitting function."""
   fig.canvas.restore_region(bg)
   for i in range(2):
-    for j in range(2):
-      lns[i,j].set_ydata(vals[i,j])
-      axs[i,j].draw_artist(lns[i,j])
+    lns[i,0].set_ydata(vals_t[i])
+    axs[i,0].draw_artist(lns[i,0])
+  for i in range(2):
+    lns[i,1].set_ydata(vals_f[i])
+    axs[i,1].draw_artist(lns[i,1])
   fig.canvas.blit(fig.bbox)
   fig.canvas.flush_events()
 
 
 ### Main function
 if __name__ == '__main__':
-  fig, axs, lns, bg, domain, domain_f = plot_init()
+  fig, axs, lns, bg, domain_t, domain_f = plot_init()
   N_f = domain_f.size
-  signal = np.zeros(domain.size)
-  freqs = np.zeros(domain.size)
+  signal = np.zeros(domain_t.size)
+  freqs = np.zeros(domain_t.size)
   
   try:
     ADC = ADS1256.ADS1256()
@@ -82,7 +84,7 @@ if __name__ == '__main__':
     
     while(True):
       t0 = time.time()
-      for i in range(domain.size):
+      for i in range(domain_t.size):
         signal[i] = ADC.ADS1256_GetChannelValue(CHANNEL)*5.0/0x7fffff
       
         #Measure processor frequency
@@ -93,10 +95,10 @@ if __name__ == '__main__':
        
       #Make a plot
       signal = signal - np.mean(signal)
-      fft = np.fft.fft(signal)
-      values = np.array([[signal,fft.real],[freqs,fft.imag]])
-      plot_flush(fig, axs, lns, bg, values)
-      np.linspace(0,1,N)
+      fft = np.fft.fft(signal)[:N_f]
+      vals_t = np.array([[signal],[freqs]])
+      vals_f = np.array([[np.abs(fft)],[fft.real]])
+      plot_flush(fig, axs, lns, bg, vals_t, vals_f)
       np.save('signal.npy', signal)
       np.save('freqs.npy', freqs)
         
