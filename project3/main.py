@@ -11,8 +11,9 @@ import matplotlib.pyplot as plt
 
 ### Constants
 CHANNEL = 7
-MAX_FREQ = 95
-SCAN_PERIOD = 1
+N = 5000 # number of points
+RATE = 100 # Hz
+PERIOD = N/RATE # seconds
 
 
 ### Plot functions
@@ -30,16 +31,18 @@ def plot_init():
   axs[1,0].set_xlabel("Time, sec")
   axs[1,1].set_xlabel("Freq, Hz")
 
-  N = 100
-  domain = np.linspace(0, N/MAX_FREQ, N)
-  val = 1+5*np.linspace(0,1,N)
-  (ln00,) = axs[0,0].plot(domain, val, 'k', animated=True)
-  val = 85+20*np.linspace(0,1,N)
-  (ln10,) = axs[1,0].plot(domain, val, 'r', animated=True)
-  val = N*domain
-  (ln01,) = axs[0,1].plot(domain, val, 'k', animated=True)
-  val = N*domain
-  (ln11,) = axs[1,1].plot(domain, val, 'k', animated=True)
+  domain_t = np.linspace(0, PERIOD, N)
+  val = -.02+.1*np.linspace(0,1,N)
+  (ln00,) = axs[0,0].plot(domain_t, val, 'k', animated=True)
+  val = 90+20*np.linspace(0,1,N)
+  (ln10,) = axs[1,0].plot(domain_t, val, 'r', animated=True)
+  
+  N_f = N
+  domain_f = np.linspace(0, RATE, N_f)
+  val = np.linspace(0,10,N_f)
+  (ln01,) = axs[0,1].plot(domain_f, val, 'k', animated=True)
+  val = np.linspace(0,10,N_f)
+  (ln11,) = axs[1,1].plot(domain_f, val, 'k', animated=True)
   lns = np.array([[ln00, ln01], [ln10, ln11]])
 
   plt.tight_layout()
@@ -51,7 +54,7 @@ def plot_init():
   axs[0,1].draw_artist(ln01)
   axs[1,1].draw_artist(ln11)
   fig.canvas.blit(fig.bbox)
-  return fig, axs, lns, bg, domain
+  return fig, axs, lns, bg, domain_t, domain_f
   
 def plot_flush(fig, axs, lns, bg, vals):
   """ Blitting function."""
@@ -66,7 +69,8 @@ def plot_flush(fig, axs, lns, bg, vals):
 
 ### Main function
 if __name__ == '__main__':
-  fig, axs, lns, bg, domain = plot_init()
+  fig, axs, lns, bg, domain, domain_f = plot_init()
+  N_f = domain_f.size
   signal = np.zeros(domain.size)
   freqs = np.zeros(domain.size)
   
@@ -88,9 +92,13 @@ if __name__ == '__main__':
         freqs[i] = 1./dt
        
       #Make a plot
+      signal = signal - np.mean(signal)
       fft = np.fft.fft(signal)
       values = np.array([[signal,fft.real],[freqs,fft.imag]])
       plot_flush(fig, axs, lns, bg, values)
+      np.linspace(0,1,N)
+      np.save('signal.npy', signal)
+      np.save('freqs.npy', freqs)
         
   except Exception as err:
     print(f"Error: {err=}, {type(err)=}")
