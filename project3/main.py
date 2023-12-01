@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 ### Constants
 CHANNEL = 7
 N = 2000 # number of points
-RATE = 100 # Hz
-PERIOD = N/RATE # seconds
+RATE = 100 # Hz, approximate
+PERIOD = N/RATE # seconds, approximate
 
 
 ### Plot functions
@@ -68,6 +68,14 @@ def plot_flush(fig, axs, lns, bg, vals_t, vals_f):
   fig.canvas.blit(fig.bbox)
   fig.canvas.flush_events()
 
+def make_filename():
+  """ Makes a filename for saving data."""
+  t = time.localtime()
+  filename = f"data{RATE}Hz/" \
+             f"data{N // RATE}_{t.tm_year}-{t.tm_mon}-{t.tm_mday}_" \
+             f"{t.tm_hour}-{t.tm_min}-{t.tm_sec}.npz"
+  return filename
+
 
 ### Main function
 if __name__ == '__main__':
@@ -99,8 +107,7 @@ if __name__ == '__main__':
       vals_t = np.array([[signal],[freqs]])
       vals_f = np.array([[np.abs(fft)],[fft.real]])
       plot_flush(fig, axs, lns, bg, vals_t, vals_f)
-      np.save('signal.npy', signal)
-      np.save('freqs.npy', freqs)
+      np.savez(make_filename(), signal=signal, freqs=freqs)
         
   except Exception as err:
     print(f"Error: {err=}, {type(err)=}")
