@@ -63,7 +63,8 @@ def module_init():
     GPIO.setup(CS_PIN, GPIO.OUT)
     #GPIO.setup(DRDY_PIN, GPIO.IN)
     GPIO.setup(DRDY_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    SPI.max_speed_hz = 8400
+    #SPI.max_speed_hz = 8400	# sampling rate 100 Hz
+    SPI.max_speed_hz = 26700	# sampling rate 300 Hz
     SPI.mode = 0b01
     return 0;
 

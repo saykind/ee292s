@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 
 ### Constants
 CHANNEL = 7
-N = 2000 # number of points
-RATE = 100 # Hz, approximate
+N = 60000 # number of points
+RATE = 300 # Hz, approximate
 PERIOD = N/RATE # seconds, approximate
 
 
@@ -34,14 +34,14 @@ def plot_init():
   domain_t = np.linspace(0, PERIOD, N)
   val = -.02+.1*np.linspace(0,1,N)
   (ln00,) = axs[0,0].plot(domain_t, val, 'k', animated=True)
-  val = 90+20*np.linspace(0,1,N)
-  (ln10,) = axs[1,0].plot(domain_t, val, 'r', animated=True)
+  val = 295+20*np.linspace(0,1,N)
+  (ln10,) = axs[1,0].plot(domain_t, val, 'r.', animated=True)
   
-  N_f = N//10
+  N_f = N//40
   domain_f = np.linspace(0, RATE*(N_f/N), N_f)
-  val = np.linspace(0,N_f/10,N_f)
+  val = np.linspace(0,N_f/8,N_f)
   (ln01,) = axs[0,1].plot(domain_f, val, 'k', animated=True)
-  val = np.linspace(0,N_f/10,N_f)
+  val = np.linspace(0,N_f/8,N_f)
   (ln11,) = axs[1,1].plot(domain_f, val, 'k', animated=True)
   lns = np.array([[ln00, ln01], [ln10, ln11]])
 
